@@ -10,13 +10,14 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter  # Added import
 from langchain_community.llms import OpenAI
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import List
 from langchain.chains.question_answering import load_qa_chain
 from langchain_core.prompts import PromptTemplate
 import logging
+import datetime
 import getpass
 import os
 import faiss
@@ -34,12 +35,12 @@ if "GOOGLE_API_KEY" not in os.environ:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+db_url = os.environ.get("DB_URL")
 # PostgreSQL Database URL
-DATABASE_URL = "postgresql://postgres:12345@localhost:5432/aiplanet"
+# DATABASE_URL = "postgresql://postgres:12345@localhost:5432/aiplanet"
 
 # Create Engine
-engine = create_engine(DATABASE_URL)
+engine = create_engine(db_url)
 
 # Create Session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -53,17 +54,12 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, unique=True, nullable=False)
     file_path = Column(String, nullable=False)
+    upload_date = Column(DateTime,nullable=False,default=datetime.datetime.utcnow)
 
 # Initialize FastAPI
 app = FastAPI(debug=True)
 
-origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
-    "http://localhost:5173/",
-    "http://localhost:5173",
-]
+origins = ["http://localhost","http://localhost:5173"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,8 +69,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+
+# Create table if it doesn't exist
+Base.metadata.create_all(engine)
 
 # Create necessary directories
 UPLOAD_DIR = "uploads"
@@ -113,10 +110,14 @@ def create_vector_store(text: str):
     vector_store = FAISS.from_texts(texts, embeddings)
     return vector_store
 
-@app.post("/upload/")
+@app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload a PDF and extract text."""
     try:
+        document = db.query(Document).filter(Document.filename == file.filename).first()
+        if document :
+            raise HTTPException(status_code=400, detail="file with this name already exist in db")
+            
         logger.info(f"Received file: {file.filename}")
         # Validate file type
         if not file.filename.lower().endswith('.pdf'):
@@ -145,7 +146,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
-@app.post("/ask/")
+@app.post("/ask")
 # async def ask_question(filename: str, question: str, db: Session = Depends(get_db)):
 async def ask_question(filename:str = Body(...), question: str = Body(...), db: Session = Depends(get_db)):
     """Answer a question based on the uploaded PDF content."""
@@ -189,13 +190,13 @@ async def ask_question(filename:str = Body(...), question: str = Body(...), db: 
         raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
 
 # Add health check endpoint
-@app.get("/health/")
+@app.get("/health")
 async def health_check():
     """Health check endpoint to verify API is working."""
     return {"status": "healthy", "message": "API is running correctly"}
 
 # Add list documents endpoint
-@app.get("/documents/")
+@app.get("/documents")
 async def list_documents(db: Session = Depends(get_db)):
     """List all uploaded documents."""
     documents = db.query(Document).all()

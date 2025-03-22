@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlusCircle, Send, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,11 @@ export default function PlanetChat() {
   const [newMessage, setNewMessage] = useState("");
   const [currentPdf, setCurrentPdf] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
   const handleSendMessage = async () => {
     try {
       if (newMessage.trim()) {
@@ -32,7 +36,7 @@ export default function PlanetChat() {
         const response = await axios.post("http://127.0.0.1:8000/ask", {
           filename: currentPdf,
           question,
-        });
+        },{withCredentials:true,maxRedirects:4});
         console.log(response);
         // In a real app, you would call an API here to get the AI response
         setIsLoading(false);
@@ -46,6 +50,7 @@ export default function PlanetChat() {
       }
     } catch (error) {
       setIsLoading(false);
+      
       console.log(error);
     }
   };
@@ -58,49 +63,54 @@ export default function PlanetChat() {
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const files = event?.target?.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      console.log("Selected file:", file);
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await axios.post(
-        "http://127.0.0.1:8000/upload",
-        formData,
-        {
-          withCredentials: true,
-        }
-      );
-      console.log("response", response);
-      setCurrentPdf(file.name);
-      // Add your file handling logic here
-      // You might want to upload the file to a server or process it
+    try {
+      const files = event?.target?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        console.log("Selected file:", file);
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await axios.post(
+          "http://localhost:8000/upload",
+          formData,
+          {
+            withCredentials: true,
+            maxRedirects:4
+          }
+        );
+        console.log("response", response);
+        setCurrentPdf(file.name);
+        // Add your file handling logic here
+        // You might want to upload the file to a server or process it
+      }
+    } catch (error) {
+      console.log(error)
     }
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto border rounded-lg overflow-hidden shadow-lg">
+    <div className="flex flex-col h-screen   mx-auto border rounded-lg  shadow-lg bg-gray-50 px-10">
       {/* Header with PDF controls */}
-      <div className="flex items-center justify-between p-3 border-b bg-white">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between py-4 px-10 border-b bg-white">
+        <div className="flex items-center gap-1">
           <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white">
             <span className="text-xs font-bold">P</span>
           </div>
-          <span className="text-sm font-medium text-gray-700">planet</span>
+          <span className="text-xl  font-extrabold text-black">planet</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2 text-sm text-green-400 border-green-400">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
+              width="35"
+              height="35"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="1"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-gray-400 border border-gray-200 rounded-sm p-0.5"
+              className="text-green-400 border border-green-200 rounded-sm p-0.5"
             >
               <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
               <polyline points="14 2 14 8 20 8" />
@@ -118,7 +128,7 @@ export default function PlanetChat() {
             onClick={handleButtonClick}
             variant="outline"
             size="sm"
-            className="  px-12 flex items-center "
+            className="  px flex items-center "
           >
             <PlusCircle size={14} />
             <span className="hidden sm:block ">Upload PDF</span>
@@ -127,16 +137,16 @@ export default function PlanetChat() {
       </div>
 
       {/* Chat messages area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto  bg-gray-50 p-16">
         {messages.map((message, index) => (
-          <div key={index} className="mb-4 flex">
+          <div key={index} className="mb-20 flex">
             {message.type === "user" ? (
               <>
                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 mr-3 flex-shrink-0">
                   S
                 </div>
                 <div className="bg-white p-3 rounded-lg shadow-sm max-w-[80%]">
-                  <p className="text-gray-800">{message.content}</p>
+                  <p className="text-gray-900">{message.content}</p>
                 </div>
               </>
             ) : (
@@ -145,7 +155,7 @@ export default function PlanetChat() {
                   <span className="text-xs font-bold">P</span>
                 </div>
                 <div className="bg-white p-3 rounded-lg shadow-sm max-w-[80%]">
-                  <p className="text-gray-800">{message.content}</p>
+                  <p className="text-gray-900 font-semibold">{message.content}</p>
                 </div>
               </>
             )}
@@ -175,11 +185,12 @@ export default function PlanetChat() {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef}></div>
       </div>
 
       {/* Message input area */}
-      <div className="p-3 border-t bg-white">
-        <div className="flex items-center gap-2">
+      <div className="p-6 px-20  bg-white mb-10">
+        <div className="flex items-center gap-2 ">
           <Input
             type="text"
             placeholder="Send a message..."
@@ -188,16 +199,16 @@ export default function PlanetChat() {
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSendMessage();
             }}
-            className="flex-1"
+            className="flex-1 p-6"
           />
           <Button
-            size="icon"
+            
             variant="ghost"
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 border-red-200 border-4 p-10"
           >
-            <Send size={18} />
+            <Send size={50} className="text-black "/>
           </Button>
         </div>
       </div>
