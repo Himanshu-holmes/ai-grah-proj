@@ -19,27 +19,34 @@ export default function PlanetChat() {
     },
   ]);
   const [newMessage, setNewMessage] = useState("");
-  const [currentPdf, setCurrentPdf] = useState("demo.pdf");
+  const [currentPdf, setCurrentPdf] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSendMessage = async () => {
-    if (newMessage.trim()) {
-      setMessages([...messages, { type: "user", content: newMessage }]);
-      let question = newMessage;
-      setNewMessage("");
-      const response = await axios.post("http://127.0.0.1:8000/ask", {
-        filename: currentPdf,
-        question,
-      });
-      console.log(response);
-      // In a real app, you would call an API here to get the AI response
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "assistant",
-          content: response.data.answer,
-        },
-      ]);
+    try {
+      if (newMessage.trim()) {
+        setMessages([...messages, { type: "user", content: newMessage }]);
+        let question = newMessage;
+        setNewMessage("");
+        setIsLoading(true);
+        const response = await axios.post("http://127.0.0.1:8000/ask", {
+          filename: currentPdf,
+          question,
+        });
+        console.log(response);
+        // In a real app, you would call an API here to get the AI response
+        setIsLoading(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "assistant",
+            content: response.data.answer,
+          },
+        ]);
+      }
+    } catch (error) {
+      setIsLoading(false);
+      console.log(error);
     }
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +66,10 @@ export default function PlanetChat() {
       formData.append("file", file);
       const response = await axios.post(
         "http://127.0.0.1:8000/upload",
-        formData
+        formData,
+        {
+          withCredentials: true,
+        }
       );
       console.log("response", response);
       setCurrentPdf(file.name);
@@ -69,34 +79,32 @@ export default function PlanetChat() {
   };
 
   return (
-    <div className="flex flex-col h-screen  border rounded-lg overflow-hidden shadow-lg">
+    <div className="flex flex-col h-screen max-w-4xl mx-auto border rounded-lg overflow-hidden shadow-lg">
       {/* Header with PDF controls */}
-      <div className="flex items-center justify-between py-8 px-10 border-b bg-white">
+      <div className="flex items-center justify-between p-3 border-b bg-white">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-            <span className="text-2xl font-bold">P</span>
+            <span className="text-xs font-bold">P</span>
           </div>
-          <span className="text-xl font-medium text-gray-700">planet</span>
+          <span className="text-sm font-medium text-gray-700">planet</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <div className=" border-green-400 p-2 border-[0.0001px]">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-green-400"
-              >
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-            </div>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-gray-400 border border-gray-200 rounded-sm p-0.5"
+            >
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
             {currentPdf}
           </div>
           <input
@@ -113,7 +121,7 @@ export default function PlanetChat() {
             className="  px-12 flex items-center "
           >
             <PlusCircle size={14} />
-            <span>Upload PDF</span>
+            <span className="hidden sm:block ">Upload PDF</span>
           </Button>
         </div>
       </div>
@@ -143,6 +151,30 @@ export default function PlanetChat() {
             )}
           </div>
         ))}
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="mb-4 flex">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white mr-3 flex-shrink-0">
+              <span className="text-xs font-bold">P</span>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm max-w-[80%] flex items-center">
+              <div className="flex space-x-2">
+                <div
+                  className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                ></div>
+                <div
+                  className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                ></div>
+                <div
+                  className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Message input area */}

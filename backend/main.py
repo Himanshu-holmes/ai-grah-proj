@@ -23,11 +23,11 @@ import faiss
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi import Body
-
+import traceback
 load_dotenv()
 
 
-
+print(f"google api key = {os.environ.get("GOOGLE_API_KEY")}")
 if "GOOGLE_API_KEY" not in os.environ:
     os.environ["GOOGLE_API_KEY"] = getpass.getpass("Provide your Google API key here")
 
@@ -61,6 +61,7 @@ origins = [
     "http://localhost.tiangolo.com",
     "https://localhost.tiangolo.com",
     "http://localhost",
+    "http://localhost:5173/",
     "http://localhost:5173",
 ]
 
@@ -104,7 +105,11 @@ def create_vector_store(text: str):
         length_function=len,
     )
     texts = text_splitter.split_text(text)
+    if not texts:
+      raise HTTPException(status_code=400, detail="No valid text chunks for embedding.")
+    # print("Extracted Chunks:", texts)  # Debugging
     embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    # print("Generated Embeddings:", embeddings)  # Debugging
     vector_store = FAISS.from_texts(texts, embeddings)
     return vector_store
 
@@ -122,6 +127,8 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
             shutil.copyfileobj(file.file, buffer)
         
         extracted_text = extract_text_from_pdf(file_path)
+        if not extracted_text.strip():
+         raise HTTPException(status_code=400, detail="No text extracted from the PDF.")
         vector_store = create_vector_store(extracted_text)
         vector_store.save_local(f"{FAISS_DIR}/{file.filename}")
             
@@ -130,7 +137,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         db.commit()
         return JSONResponse(content={"message": "File uploaded and processed successfully."})
     except Exception as e:
-        traceback_str = traceback_str.format_exc()
+        traceback_str = traceback.format_exc()
         print(f"Error processing file: {traceback_str}")
         # Clean up if processing fails
         if os.path.exists(file_path):
