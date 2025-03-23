@@ -28,7 +28,7 @@ import traceback
 load_dotenv()
 
 
-print(f"google api key = {os.environ.get("GOOGLE_API_KEY")}")
+# print(f"google api key = {os.environ.get("GOOGLE_API_KEY")}")
 if "GOOGLE_API_KEY" not in os.environ:
     os.environ["GOOGLE_API_KEY"] = getpass.getpass("Provide your Google API key here")
 
@@ -103,7 +103,7 @@ def create_vector_store(text: str):
     )
     texts = text_splitter.split_text(text)
     if not texts:
-      raise HTTPException(status_code=400, detail="No valid text chunks for embedding.")
+       return JSONResponse(status_code=400, detail="No valid text chunks for embedding.")
     # print("Extracted Chunks:", texts)  # Debugging
     embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
     # print("Generated Embeddings:", embeddings)  # Debugging
@@ -116,12 +116,14 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     try:
         document = db.query(Document).filter(Document.filename == file.filename).first()
         if document :
-            raise HTTPException(status_code=400, detail="file with this name already exist in db")
-            
+             return JSONResponse(
+                status_code=400,
+                content={"detail": "File with this name already exists in the database"}
+            )            
         logger.info(f"Received file: {file.filename}")
         # Validate file type
         if not file.filename.lower().endswith('.pdf'):
-            raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+           return JSONResponse(status_code=400, content={"detail":"Only PDF files are allowed."})
         
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
@@ -129,7 +131,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         
         extracted_text = extract_text_from_pdf(file_path)
         if not extracted_text.strip():
-         raise HTTPException(status_code=400, detail="No text extracted from the PDF.")
+         return JSONResponse(status_code=400, content={"detail":"No text extracted from the PDF."})
         vector_store = create_vector_store(extracted_text)
         vector_store.save_local(f"{FAISS_DIR}/{file.filename}")
             
@@ -144,20 +146,25 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         if os.path.exists(file_path):
             os.remove(file_path)
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        return JSONResponse(status_code=500, content={"detail":f"Error processing file: {str(e)}"})
 
 @app.post("/ask")
 # async def ask_question(filename: str, question: str, db: Session = Depends(get_db)):
 async def ask_question(filename:str = Body(...), question: str = Body(...), db: Session = Depends(get_db)):
     """Answer a question based on the uploaded PDF content."""
+    if not filename:
+        return JSONResponse(status_code=400, content={"detail":"please upload file"})
+    if not question:
+        return JSONResponse(status_code=400, content={"detail":"Please ask me question!"})
+    
     logger.info(f"Received file: ")
     document = db.query(Document).filter(Document.filename == filename).first()
     if not document:
-        raise HTTPException(status_code=404, detail="Document not found.")
+       return JSONResponse(status_code=404, content={"detail":"Document not found."})
     
     vector_store_path = f"{FAISS_DIR}/{filename}"
     if not os.path.exists(vector_store_path):
-        raise HTTPException(status_code=404, detail="Document embeddings not found.")
+        return JSONResponse(status_code=404, content={"detail":"Document embeddings not found."})
     
     try:
         embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
@@ -187,7 +194,7 @@ async def ask_question(filename:str = Body(...), question: str = Body(...), db: 
         
         return JSONResponse(content={"answer": response["output_text"]})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
+        return JSONResponse(status_code=500, content={"detail":f"Error processing question: {str(e)}"})
 
 # Add health check endpoint
 @app.get("/health")

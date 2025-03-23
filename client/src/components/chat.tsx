@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PlusCircle, Send, Upload } from "lucide-react";
+import { PlusCircle, Send, SendHorizonal, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import axios from "axios";
+import { toast } from "sonner";
+import { Spinner } from "./ui/spinner";
 
 export default function PlanetChat() {
   const [messages, setMessages] = useState([
@@ -21,6 +23,7 @@ export default function PlanetChat() {
   const [newMessage, setNewMessage] = useState("");
   const [currentPdf, setCurrentPdf] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading,setIsUploading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -33,10 +36,21 @@ export default function PlanetChat() {
         let question = newMessage;
         setNewMessage("");
         setIsLoading(true);
-        const response = await axios.post("http://127.0.0.1:8000/ask", {
-          filename: currentPdf,
-          question,
-        },{withCredentials:true,maxRedirects:4});
+        const response = await axios.post(
+          "http://127.0.0.1:8000/ask",
+          {
+            filename: currentPdf,
+            question,
+          },
+          { withCredentials: true, maxRedirects: 4 }
+        );
+
+        if (response.status !== 200) {
+          setIsLoading(false);
+
+          toast.error(response.data.detail);
+          return;
+        }
         console.log(response);
         // In a real app, you would call an API here to get the AI response
         setIsLoading(false);
@@ -47,11 +61,18 @@ export default function PlanetChat() {
             content: response.data.answer,
           },
         ]);
+
       }
-    } catch (error) {
+    } catch (error: any) {
       setIsLoading(false);
-      
+
       console.log(error);
+      if (error.response) {
+        console.log("error response", error.response);
+        toast.error(error.response?.data?.detail);
+      } else {
+        toast.error(error.message);
+      }
     }
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +85,7 @@ export default function PlanetChat() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     try {
+      setIsUploading(true)
       const files = event?.target?.files;
       if (files && files.length > 0) {
         const file = files[0];
@@ -75,21 +97,35 @@ export default function PlanetChat() {
           formData,
           {
             withCredentials: true,
-            maxRedirects:4
+            maxRedirects: 4,
           }
         );
+        console.log("status", response.status);
+        if (response.status !== 200) {
+          setIsUploading(false)
+          toast.error(response.data.detail);
+          return
+        }
         console.log("response", response);
         setCurrentPdf(file.name);
+        setIsUploading(false)
         // Add your file handling logic here
         // You might want to upload the file to a server or process it
       }
-    } catch (error) {
-      console.log(error)
+    } catch (error: any) {
+      setIsUploading(false)
+      console.log(error);
+      if (error.response) {
+        console.log("error response", error.response);
+        toast.error(error.response?.data?.detail);
+      } else {
+        toast.error(error.message);
+      }
     }
   };
 
   return (
-    <div className="flex flex-col h-screen   mx-auto border rounded-lg  shadow-lg bg-gray-50 px-10">
+    <div className="flex flex-col h-screen   mx-auto border rounded-lg  shadow-lg bg-gray-50 sm:px-10">
       {/* Header with PDF controls */}
       <div className="flex items-center justify-between py-4 px-10 border-b bg-white">
         <div className="flex items-center gap-1">
@@ -124,20 +160,22 @@ export default function PlanetChat() {
             onChange={handleFileChange}
             style={{ display: "none" }}
           />
-          <Button
+          <button
             onClick={handleButtonClick}
-            variant="outline"
-            size="sm"
-            className="  px flex items-center "
-          >
-            <PlusCircle size={14} />
-            <span className="hidden sm:block ">Upload PDF</span>
-          </Button>
+            className="border-1 border-gray-700 rounded py-2 flex items-center gap-2 justify-around px-2 sm:px-10"
+          >{
+            isUploading ? <Spinner size={"small"}/> :<>
+            
+            <PlusCircle size={20} strokeWidth={1.25} />
+            <span className="hidden sm:block font-semibold">Upload PDF</span>
+            </>
+          }
+          </button>
         </div>
       </div>
 
       {/* Chat messages area */}
-      <div className="flex-1 overflow-y-auto  bg-gray-50 p-16">
+      <div className="flex-1 overflow-y-auto  bg-gray-50 py-16 px-7 sm:p-16 ">
         {messages.map((message, index) => (
           <div key={index} className="mb-20 flex">
             {message.type === "user" ? (
@@ -155,7 +193,9 @@ export default function PlanetChat() {
                   <span className="text-xs font-bold">P</span>
                 </div>
                 <div className="bg-white p-3 rounded-lg shadow-sm max-w-[80%]">
-                  <p className="text-gray-900 font-semibold">{message.content}</p>
+                  <p className="text-gray-900 font-semibold">
+                    {message.content}
+                  </p>
                 </div>
               </>
             )}
@@ -189,8 +229,8 @@ export default function PlanetChat() {
       </div>
 
       {/* Message input area */}
-      <div className="p-6 px-20  bg-white mb-10">
-        <div className="flex items-center gap-2 ">
+      <div className="sm:p-6 sm:px-20  bg-white mb-10">
+        <div className="relative flex items-center gap-2 ">
           <Input
             type="text"
             placeholder="Send a message..."
@@ -202,13 +242,12 @@ export default function PlanetChat() {
             className="flex-1 p-6"
           />
           <Button
-            
             variant="ghost"
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
-            className="text-gray-400 hover:text-gray-600 border-red-200 border-4 p-10"
+            className="text-gray-400 hover:text-gray-600 absolute right-0"
           >
-            <Send size={50} className="text-black "/>
+            <SendHorizonal size={50} className="text-gray-600  size-5" />
           </Button>
         </div>
       </div>
