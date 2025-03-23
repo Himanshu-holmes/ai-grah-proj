@@ -1,8 +1,3 @@
-frontend setup
-cd frontend
-npm i
- backend setup
- cd backend 
 
 # FastAPI PDF Processing and QA System
 
