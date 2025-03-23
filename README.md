@@ -28,6 +28,7 @@ This FastAPI application allows users to:
 ```sh
 git clone <your-repo-url>
 cd <your-repo-folder>
+cd backend/
 ```
 
 ### 2. Create a Virtual Environment
@@ -56,6 +57,11 @@ Alternatively, you will be prompted to enter the Google API Key when running the
 ### 5. Run the FastAPI Server
 ```sh
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+### 6. Go To client Directory In New Terminal
+```sh
+ npm i
+ npm run dev
 ```
 
 ---
